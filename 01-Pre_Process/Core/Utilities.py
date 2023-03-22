@@ -94,7 +94,6 @@ def setFilePath():
     Options['path'] = os.path.abspath(os.path.dirname(sys.argv[0]))
     try:
         pythonpath =  os.environ['PYTHONPATH']
-        print(pythonpath)
         pythonpath =  pythonpath.split('/')
         pythonpath = [i for i in pythonpath if i]
         pythonpath =  pythonpath[1:-1]
