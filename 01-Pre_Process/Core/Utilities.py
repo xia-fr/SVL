@@ -97,7 +97,7 @@ def setFilePath():
         pythonpath =  pythonpath.split('/')
         pythonpath = [i for i in pythonpath if i]
         pythonpath =  pythonpath[1:-1]
-        pythonpath =  "/" + "/".join(pythonpath)
+        pythonpath =  "/" + "/".join(pythonpath) 
         Options['preanalysis'] = pythonpath + '/01-Pre_Process'
         Options['runanalysis'] = pythonpath + '/02-Run_Process'
         Options['metispath'] =  Options['preanalysis'] + '/Metis/mpmetis'
