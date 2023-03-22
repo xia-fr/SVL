@@ -1,0 +1,30 @@
+# OSX / default autosave extension
+*.m~
+
+# Icon must end with two \r
+Icon
+
+# Thumbnails
+._*
+
+#Python compiled
+*.pyc
+*.pyc~
+
+# C++ / default autosave extension 
+*.cpp~
+*.hpp~
+
+# Debugging/Performance folders
+/03-Validations/01-Debugging/*
+!/03-Validations/01-Debugging/*.zip
+
+/03-Validations/02-Performance
+!/03-Validations/02-Performance/*.zip
+
+# Metis software
+/01-Pre_Process/Metis/mpmetis
+
+# C++ / Compilation files
+*.o
+SeismoVLAB.exe
