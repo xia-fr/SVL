@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <fstream>
+#include <chrono>
 
 //#include <Eigen/SparseCholesky>
 #include <Spectra/SymGEigsShiftSolver.h>
@@ -100,6 +101,9 @@ NewmarkBeta::Initialize(std::shared_ptr<Mesh> &mesh){
             Eigen::MatrixXd MMdense = Eigen::MatrixXd(MM);
             std::cout << "Matrix size: [" << MMdense.rows() << "x" << MMdense.rows() << "] \n" << std::endl;
 
+            // Timing info start
+            auto start = std::chrono::high_resolution_clock::now();
+
             // Kx = lMx
             // K = A, M = B
             using OpType = Spectra::SymShiftInvert<double, Eigen::Sparse, Eigen::Sparse>;
@@ -121,9 +125,16 @@ NewmarkBeta::Initialize(std::shared_ptr<Mesh> &mesh){
                 evalues = geigs.eigenvalues();
             }
 
+            // Timing info end
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto dur = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
+            std::cout << "Run time: " << dur.count() << "s\n" << std::endl;
+
             Eigen::VectorXd ws = evalues.cwiseSqrt();
-            std::cout << "Eigenvalues" << std::endl;
+            std::cout << "Eigenvalues:" << std::endl;
             std::cout << ws << "\n" << std::endl;
+
+            // Select first eigenvalue that isn't extremely small
 
             // Calculated corner frequencies from first eigenvalue
             //double w1 = sqrt(lambda);
