@@ -206,6 +206,9 @@ class lin2DQuad4 : public Element{
         ///Element thickness.
         double t;
 
+        // Maximum strain (equivalent linear parameter)
+        double maxStrain;
+
         ///The Damping model.
         std::shared_ptr<Damping> theDamping;
 

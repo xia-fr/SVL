@@ -88,7 +88,7 @@ NewmarkBeta::Initialize(std::shared_ptr<Mesh> &mesh){
         // If using automatic cf rayleigh damping
         if(strcasecmp(name.c_str(),"Autorayleigh") == 0) {
             std::cout << name << std::endl;
-            std::cout << "INVERSE ITERATION FOR EIGENVALUE \n" << std::endl;
+            std::cout << "INVERSE ITERATION FOR EIGENVALUES \n" << std::endl;
 
             //Gets the stiffness matrix of the model.
             K = theAssembler->ComputeStiffnessMatrix(mesh);
@@ -113,7 +113,7 @@ NewmarkBeta::Initialize(std::shared_ptr<Mesh> &mesh){
             BOpType Bop(MM);
 
             Spectra::SymGEigsShiftSolver<OpType, BOpType, Spectra::GEigsMode::ShiftInvert> 
-                geigs(op, Bop, 4, 8, 0);
+                geigs(op, Bop, 5, 10, 0);
 
             // Initialize and compute
             geigs.init();
@@ -127,25 +127,38 @@ NewmarkBeta::Initialize(std::shared_ptr<Mesh> &mesh){
 
             // Timing info end
             auto stop = std::chrono::high_resolution_clock::now();
-            auto dur = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
-            std::cout << "Run time: " << dur.count() << "s\n" << std::endl;
+            auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+            std::cout << "Run time: " << dur.count() << "ms\n" << std::endl;
 
             Eigen::VectorXd ws = evalues.cwiseSqrt();
-            std::cout << "Eigenvalues:" << std::endl;
-            std::cout << ws << "\n" << std::endl;
+            std::cout << "Natural frequencies (rad/s):" << std::endl;
+            std::cout << ws.reverse() << "\n" << std::endl;
 
-            // Select first eigenvalue that isn't extremely small
+            // Select first eigenvalue that is larger than tolerance level
+            // for what is "zero" or "-nan"
+            double eigenTol = 1.0e-4;
+            double ww = ws[0];
+            for (int eix = 1; eix < ws.rows(); eix++){
+                if (ws[eix] < eigenTol){
+                    break;
+                }
+                ww = ws[eix];
+            }
 
             // Calculated corner frequencies from first eigenvalue
             //double w1 = sqrt(lambda);
-            double w1 = sqrt(evalues[evalues.rows()-1]);
+            std::cout << "Selected pivot frequencies:" << std::endl;
+            double w1 = ww;
             double w2 = 3*w1;
-            std::cout << "w1: " << w1 << " rad/s" << std::endl;
-            std::cout << "w2: " << w2 << " rad/s \n" << std::endl;
+            std::cout << "w1: " << w1 << " rad/s (" << w1/(2.0*3.14159265358979) << " Hz)" << std::endl;
+            std::cout << "w2: " << w2 << " rad/s (" << w2/(2.0*3.14159265358979) << " Hz) \n" << std::endl;
 
             // Sets the damping parameters according to calculated fundamental
-            // dparams[0] := w1 = cf1, dparams[1] := w2 = cf2
+            // dparams[0] := f1 = cf1, dparams[1] := f2 = cf2
+            // In hz to match eqlinear code
             std::vector<double> dparams = Dampings[Tag]->GetParameters();
+            //dparams[0] = w1/(2.0*3.14159265358979);
+            //dparams[1] = w2/(2.0*3.14159265358979);
             dparams[0] = w1;
             dparams[1] = w2;
             
@@ -156,6 +169,12 @@ NewmarkBeta::Initialize(std::shared_ptr<Mesh> &mesh){
             //for(int i = 0; i<2; i++) {
             //    std::cout << debugparams[i] << std::endl;
             //}
+
+            //Debug: Save calculated corner frequencies into a file
+            //std::ofstream outfile;
+            //outfile.open("autorayleigh_freqs.txt", std::ios_base::app);
+            //outfile << "w1: " << w1 << " rad/s (" << w1/(2.0*3.14159265358979) << " Hz), ";
+            //outfile << "w2: " << w2 << " rad/s (" << w2/(2.0*3.14159265358979) << " Hz) \n";
         }
         
     }

@@ -445,14 +445,19 @@ TIEQlin2DQuad4::ComputeDampingMatrix(){
 		double xi_R = EqLinParam(1);
 		double GGmax = EqLinParam(0);
 
-        // Get corner frequencies from damping object (autorayleigh)
+        // Get corner frequencies from damping object (Autorayleigh)
+        // units of hz
         std::vector<double> dparams = theDamping->GetParameters();
         double cf1 = dparams[0];
         double cf2 = dparams[1];
 
-		double d  = cf2/4.0/cf1 - cf1/4.0/cf2;
-		double aM = (PI*cf2*xi_R - PI*cf1*xi_R)/d;
-		double aK = (-xi_R/4.0/PI/cf2 + xi_R/4.0/PI/cf1)/d;
+        //TODO: DOUBLE CHECK THESE EXPRESSIONS FOR AM AND AK
+        //double d  = cf2/4.0/cf1 - cf1/4.0/cf2;
+		//double aM = (PI*cf2*xi_R - PI*cf1*xi_R)/d;
+		//double aK = (-xi_R/4.0/PI/cf2 + xi_R/4.0/PI/cf1)/d;
+
+        double aM = xi_R * (2*cf1*cf2)/(cf1+cf2);
+        double aK = xi_R * (2)/(cf1+cf2);
 
         //Numerical integration.
         DampingMatrix += aM*wi(i)*rho*t*fabs(Jij.determinant())*Hij.transpose()*Hij + aK*GGmax*wi(i)*t*fabs(Jij.determinant())*Bij.transpose()*Cij*Bij;
@@ -830,7 +835,7 @@ TIEQlin2DQuad4::ComputeGGmaxDamping(const double vs, const double z, const doubl
 	double g  = 9.81;  //gravity acceleration [m/s^2]
 	double K0 = 0.50;  //coefficient of lateral earth pressure
 	double PIndex;     //plasticity index
-	double H = zref-z; //soil column height
+	double H = zref; //soil column height, zref-z;
 
     if (H < 0.0)
         H = 0.0;

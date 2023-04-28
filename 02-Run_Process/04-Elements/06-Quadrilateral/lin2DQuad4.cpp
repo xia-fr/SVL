@@ -23,6 +23,9 @@ Element("lin2DQuad4", nodes, 8, VTK_LINEAR_QUAD, GROUP_ELEMENT_QUAD), t(th){
     theMaterial.resize(nGauss);
     for(unsigned int i = 0; i < nGauss; i++)
         theMaterial[i] = material->CopyMaterial();
+
+    //Initialize max strain tracker
+    maxStrain = 0.0;
 }
 
 //Default Destructor.
@@ -58,8 +61,14 @@ lin2DQuad4::CommitState(){
         }
     }
 
-    for(unsigned int k = 0; k < nPoints; k++)
+    for(unsigned int k = 0; k < nPoints; k++){
         theMaterial[k]->CommitState();
+
+        // Update max shear strain
+        Eigen::VectorXd strain = theMaterial[k]->GetStrain();
+        double shearStrain = strain(2); // voigt notation, third elem. is shear
+        if (shearStrain > maxStrain) maxStrain = shearStrain;
+    }
 }
 
 //Reverse the material states to previous converged state in this element.
@@ -80,6 +89,8 @@ lin2DQuad4::InitialState(){
 
     for(unsigned int k = 0; k < nPoints; k++)
         theMaterial[k]->InitialState();
+    //Initialize max strain tracker
+    maxStrain = 0.0;
 }
 
 //Update the material states in the element.
@@ -149,8 +160,7 @@ lin2DQuad4::GetTotalDegreeOfFreedom() const{
 //Returns the maximum strain value.
 double
 lin2DQuad4::GetMaxStrain(){
-    //return maxStrain;
-    return 0.0;
+    return maxStrain;
 }
 
 //Returns the material strain at integration points.
