@@ -218,6 +218,11 @@ class TIEQlin2DQuad4 : public Element{
         ///Reference shear strain metric to read G/Gmax and damping curves
         double eref;
 
+        ///New damping stuff
+        Eigen::MatrixXd Dlag;
+        int lagSize;
+        double flim;
+
         // Maximum strain (equivalent linear parameter)
         double maxStrain;
 

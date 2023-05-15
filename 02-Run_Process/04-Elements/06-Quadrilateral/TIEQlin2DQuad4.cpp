@@ -8,13 +8,17 @@
 #include "Definitions.hpp"
 #include "Profiler.hpp"
 
+//
+#include <iostream>
+#include <stdio.h>
+
 //Define constant value:
 const double PI = 3.1415926535897932;
 
 //Overload constructor.
 TIEQlin2DQuad4::TIEQlin2DQuad4(const std::vector<unsigned int> nodes, std::unique_ptr<Material> &material, const double th, const std::string quadrature, const unsigned int nGauss, const std::string Type, const double zref, const double eref) :
 Element("TIEQlin2DQuad4", nodes, 8, VTK_LINEAR_QUAD, GROUP_ELEMENT_QUAD), t(th), zref(zref), eref(eref), Type(Type) {
-    //The element nodes.
+    //The element nodes. 
     theNodes.resize(4);
 
     //Numerical integration rule.
@@ -50,6 +54,21 @@ TIEQlin2DQuad4::CommitState(){
         Eigen::VectorXd strain = theMaterial[k]->GetStrain();
         double shearStrain = strain(2); // voigt notation, third elem. is shear
         if (shearStrain > maxStrain) maxStrain = shearStrain;
+    }
+
+    std::string name = theDamping -> GetName();
+    // If using extended rayleigh
+    if(strcasecmp(name.c_str(),"ExtendedRayleigh") == 0) {
+        // Save displacement into memory
+        Eigen::VectorXd D(8);
+        D << theNodes[0]->GetDisplacements(), theNodes[1]->GetDisplacements(), theNodes[2]->GetDisplacements(), theNodes[3]->GetDisplacements();
+        
+        // Shift all history displacements to the right
+        Eigen::MatrixXd dKeep = Dlag.leftCols(lagSize*2-1);
+        Dlag.rightCols(lagSize*2-1) = dKeep;
+
+        // Add most recent displacement
+        Dlag.col(0) = D;
     }
 }
 
@@ -105,16 +124,6 @@ TIEQlin2DQuad4::UpdateState(){
         //Computes strain vector.
         Eigen::VectorXd strain = ComputeStrain(Bij);
 
-        //double Gmax = theMaterial[k]->GetShearModulus();
-        //double rho  = theMaterial[k]->GetDensity();
-        //double vs   = sqrt(Gmax/rho);
-
-        //Eigen::MatrixXd Hij = ComputeShapeFunctionMatrix(xi(k,0), xi(k,1));
-        //Eigen::VectorXd XGauss = Hij*X;
-        //double z = XGauss(1);
-        //Eigen::VectorXd EqLinParam = ComputeGGmaxDamping(vs,z,rho);
-        //double GGmax = EqLinParam(0);  [-Wunused-variable]
-
         theMaterial[k]->UpdateState(strain, 1);
     }
 }
@@ -136,6 +145,18 @@ void
 TIEQlin2DQuad4::SetDamping(const std::shared_ptr<Damping> &damping){
     //The damping model
     theDamping = damping;
+
+    std::string name = theDamping -> GetName();
+    // If using extended rayleigh
+    if(strcasecmp(name.c_str(),"ExtendedRayleigh") == 0) {
+        std::vector<double> dparams = theDamping->GetParameters();
+        double dt = dparams[0];
+        flim = dparams[1];
+        lagSize = (1.0/flim)/dt;
+
+        Dlag.resize(8, lagSize*2);
+        Dlag.fill(0.0);
+    }
 }
 
 //Gets the list of total-degree of freedom of this element.
@@ -415,6 +436,9 @@ TIEQlin2DQuad4::ComputeDampingMatrix(){
     Eigen::VectorXd X(8);
     X << X1, X2, X3, X4;
 
+    //Gets the name of damping in this element
+    std::string name = theDamping -> GetName();
+
     //Numerical integration.
     for(unsigned int i = 0; i < wi.size(); i++){
         //Jacobian matrix.
@@ -445,19 +469,52 @@ TIEQlin2DQuad4::ComputeDampingMatrix(){
 		double xi_R = EqLinParam(1);
 		double GGmax = EqLinParam(0);
 
-        // Get corner frequencies from damping object (Autorayleigh)
-        // units of hz
-        std::vector<double> dparams = theDamping->GetParameters();
-        double cf1 = dparams[0];
-        double cf2 = dparams[1];
+        double aM;
+        double aK;
+        // Depending on the type of damping
+        if(strcasecmp(name.c_str(),"ExtendedRayleigh") == 0) {
+            // Linear interpolation for coefficients
+            double c0;
+            double c1;
+            double c2;
+            if (xi_R < 0.01) {
+                c0 = 26.6*xi_R;
+                c1 = 77*xi_R;
+                c2 = 0.119;      
+            } 
+            else if(xi_R < 0.03) {
+                c0 = -0.20*xi_R + 0.268;
+                c1 = 0.250*xi_R + 0.767;
+                c2 = 0.119;      
+            }
+            else if(xi_R < 0.05) {
+                c0 = -0.10*xi_R + 0.265;
+                c1 = 0.250*xi_R + 0.768;
+                c2 = 0.350*xi_R + 0.108;
+            }
+            else if(xi_R < 0.1) {
+                c0 = -0.50*xi_R + 0.285;
+                c1 = 0.200*xi_R + 0.770;
+                c2 = 0.620*xi_R + 0.095;
+            }
+            else {
+                c0 = -0.62*xi_R + 0.297;
+                c1 = 0.500*xi_R + 0.740;
+                c2 = 0.280*xi_R + 0.129;
+            }
 
-        //TODO: DOUBLE CHECK THESE EXPRESSIONS FOR AM AND AK
-        //double d  = cf2/4.0/cf1 - cf1/4.0/cf2;
-		//double aM = (PI*cf2*xi_R - PI*cf1*xi_R)/d;
-		//double aK = (-xi_R/4.0/PI/cf2 + xi_R/4.0/PI/cf1)/d;
+            aM = 2*xi_R*flim*c0;
+            aK = 2*xi_R/PI/flim * (c1+c2);
+        } else if (strcasecmp(name.c_str(),"AutoRayleigh") == 0) {
+            // Get corner frequencies from damping object (Autorayleigh)
+            // units of hz
+            std::vector<double> dparams = theDamping->GetParameters();
+            double cf1 = dparams[0];
+            double cf2 = dparams[1];
 
-        double aM = xi_R * (2*cf1*cf2)/(cf1+cf2);
-        double aK = xi_R * (2)/(cf1+cf2);
+            aM = xi_R * (2*cf1*cf2)/(cf1+cf2);
+            aK = xi_R * (2)/(cf1+cf2);
+        }
 
         //Numerical integration.
         DampingMatrix += aM*wi(i)*rho*t*fabs(Jij.determinant())*Hij.transpose()*Hij + aK*GGmax*wi(i)*t*fabs(Jij.determinant())*Bij.transpose()*Cij*Bij;
@@ -497,6 +554,9 @@ TIEQlin2DQuad4::ComputeInternalForces(){
     Eigen::VectorXd X(8);
     X << X1, X2, X3, X4;
 
+    //For new damping
+    double xi_R = 0.0;
+
     //Numerical integration.
     for(unsigned int i = 0; i < wi.size(); i++){
         //Jacobian matrix.
@@ -521,9 +581,44 @@ TIEQlin2DQuad4::ComputeInternalForces(){
         Eigen::VectorXd EqLinParam = ComputeGGmaxDamping(vs,z,rho);
 
         double GGmax = EqLinParam(0);
+        xi_R = EqLinParam(1);
 
         //Numerical integration.
         InternalForces += GGmax*wi(i)*t*fabs(Jij.determinant())*Bij.transpose()*Stress;
+    }
+
+    // If using extended rayleigh
+    std::string name = theDamping -> GetName();
+    if(strcasecmp(name.c_str(),"ExtendedRayleigh") == 0) {
+        // Linear interpolation for coefficient c1
+            double c1;
+            if (xi_R < 0.01) {
+                c1 = 77*xi_R;    
+            } 
+            else if(xi_R < 0.03) {
+                c1 = 0.250*xi_R + 0.767;
+            }
+            else if(xi_R < 0.05) {
+                c1 = 0.250*xi_R + 0.768;
+            }
+            else if(xi_R < 0.1) {
+                c1 = 0.200*xi_R + 0.770;
+            }
+            else {
+                c1 = 0.500*xi_R + 0.740;
+            }
+
+        // Damping coefficients
+        double g1 = 2*xi_R*c1*(-0.551);
+        double g2 = 2*xi_R*c1*(-0.130);
+
+        // Get displacement history values
+        Eigen::VectorXd D1 = Dlag.col(lagSize-1);
+        Eigen::VectorXd D2 = Dlag.col(lagSize*2-1);
+
+        // Additional damping force
+        Eigen::VectorXd DD = ComputeStiffnessMatrix()*(g1*D1 + g2*D2);
+        InternalForces += DD;
     }
 
     return InternalForces;
@@ -540,7 +635,7 @@ TIEQlin2DQuad4::ComputeInternalDynamicForces(){
         Eigen::VectorXd V(8); 
         Eigen::VectorXd A(8);
 
-        //Fills the response vectors with velocity/acceleraton values.
+        //Fills the response vectors with velocity/acceleration values.
         V << theNodes[0]->GetVelocities(), theNodes[1]->GetVelocities(), theNodes[2]->GetVelocities(), theNodes[3]->GetVelocities();
         A << theNodes[0]->GetAccelerations(), theNodes[1]->GetAccelerations(), theNodes[2]->GetAccelerations(), theNodes[3]->GetAccelerations();
 
@@ -835,13 +930,13 @@ TIEQlin2DQuad4::ComputeGGmaxDamping(const double vs, const double z, const doubl
 	double g  = 9.81;  //gravity acceleration [m/s^2]
 	double K0 = 0.50;  //coefficient of lateral earth pressure
 	double PIndex;     //plasticity index
-	double H = zref; //soil column height, zref-z;
+	double H = zref; //soil column height, original: zref-z;
 
     if (H < 0.0)
         H = 0.0;
 
     double sigmav = rho*g*H; //vertical pressure
-    double sigma0 = (1.0 + 2.0*K0)*sigmav/3.0;//lateral pressure
+    double sigma0 = (1.0 + 2.0*K0)*sigmav/3.0; //lateral pressure
     double ppre   = 0.106*pow(vs,1.47)*1000; // [Pa]
     double OCR    = ppre/sigmav;//overconsolidation ratio
 

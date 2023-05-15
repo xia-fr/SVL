@@ -154,13 +154,11 @@ NewmarkBeta::Initialize(std::shared_ptr<Mesh> &mesh){
             std::cout << "w2: " << w2 << " rad/s (" << w2/(2.0*3.14159265358979) << " Hz) \n" << std::endl;
 
             // Sets the damping parameters according to calculated fundamental
-            // dparams[0] := f1 = cf1, dparams[1] := f2 = cf2
-            // In hz to match eqlinear code
+            // dparams[0] := w1 = cf1, dparams[1] := w2 = cf2
             std::vector<double> dparams = Dampings[Tag]->GetParameters();
-            //dparams[0] = w1/(2.0*3.14159265358979);
-            //dparams[1] = w2/(2.0*3.14159265358979);
             dparams[0] = w1;
             dparams[1] = w2;
+            dparams[2] = dt;
             
             Dampings[Tag]->SetParameters(dparams);
         

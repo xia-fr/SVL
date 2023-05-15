@@ -1389,7 +1389,12 @@ UpdateDampings(std::shared_ptr<Mesh> &theMesh, RSJresource& jsonFile){
             parameters.resize(3);
             parameters[0] = 0.0;
             parameters[1] = 0.0;
-            parameters[2] = jsonFile["Dampings"][dTag]["attributes"]["dratio"].as<double>(0.0);
+            parameters[2] = 0.0;
+        }
+        else if(strcasecmp(Name.c_str(),"ExtendedRayleigh") == 0){
+            parameters.resize(2);
+            parameters[0] = jsonFile["Dampings"][dTag]["attributes"]["dt"].as<double>(0.0);
+            parameters[1] = jsonFile["Dampings"][dTag]["attributes"]["flim"].as<double>(0.0);
         }
         else if(strcasecmp(Name.c_str(),"Capped") == 0){
             //TODO: Capped-viscous damping is not implemented yet.
@@ -1440,9 +1445,15 @@ UpdateDampings(std::shared_ptr<Mesh> &theMesh, RSJresource& jsonFile){
                 //parameters.resize(4);
             }
             else if(strcasecmp(Name.c_str(),"Autorayleigh") == 0){
-                parameters.resize(2);
+                parameters.resize(3);
                 parameters[0] = 0.0;
                 parameters[1] = 0.0;
+                parameters[2] = 0.0;
+            }
+            else if(strcasecmp(Name.c_str(),"ExtendedRayleigh") == 0){
+            parameters.resize(2);
+            parameters[0] = jsonFile["Dampings"][dTag]["attributes"]["dt"].as<double>(0.0);
+            parameters[1] = jsonFile["Dampings"][dTag]["attributes"]["flim"].as<double>(0.0);
             }
             else if(strcasecmp(Name.c_str(),"Capped") == 0){
                 //TODO: Capped-viscous damping is not implemented yet.
